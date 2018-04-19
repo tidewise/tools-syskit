@@ -60,7 +60,7 @@ Syskit::Scripts.run do
 
     main.restore_from_settings
     main.show
-    Vizkit.exec
+    Vizkit.exec(async_period: 0.5)
     main.save_to_settings
     main.settings.sync
 end
