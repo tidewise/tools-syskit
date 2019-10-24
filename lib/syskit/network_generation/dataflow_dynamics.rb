@@ -529,17 +529,17 @@ module Syskit
 
                 dataflow_graph = plan.task_relation_graph_for(Flows::DataFlow)
                 connection_graph = dataflow_graph.compute_concrete_connection_graph
-                policy_graph = Flows::DataFlow::ConcreteConnectionGraph.new
+                policy_graph = {}
                 deployed_tasks.each do |source_task|
                     connection_graph.each_out_neighbour(source_task) do |sink_task|
                         mappings = connection_graph.edge_info(source_task, sink_task)
                         computed_policies = mappings.map_value do |(source_port_name, sink_port_name), policy|
                             policy_for(source_task, source_port_name, sink_port_name, sink_task, policy)
                         end
-                        policy_graph.add_edge(source_task, sink_task, computed_policies)
+                        policy_graph[[source_task, sink_task]] = computed_policies
                     end
                 end
-                #dataflow_graph.reset_computed_policies(policy_graph)
+                dataflow_graph.policy_graph = policy_graph
                 result
             end
 
