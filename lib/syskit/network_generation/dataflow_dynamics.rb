@@ -320,9 +320,11 @@ module Syskit
                         "  #{dev.name}, period: #{dev.period} burst: #{dev.burst}"
                     end
                     srv.each_input_port do |port|
-                        handled_ports << port.name
                         port = port.to_component_port
-                        dynamics = PortDynamics.new("#{task.orocos_name}.#{port.name}", dev.sample_size)
+                        handled_ports << port.name
+                        dynamics = PortDynamics.new(
+                            "#{task.orocos_name}.#{port.name}", dev.sample_size
+                        )
                         if dev.period
                             dynamics.add_trigger(dev.name, dev.period, 1)
                             dynamics.add_trigger(dev.name, 0, dev.burst)
