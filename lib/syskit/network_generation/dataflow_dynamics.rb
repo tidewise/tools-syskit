@@ -319,7 +319,7 @@ module Syskit
                     DataFlowDynamics.debug do
                         "  #{dev.name}, period: #{dev.period} burst: #{dev.burst}"
                     end
-                    srv.each_input_port do |port|
+                    srv.each_output_port do |port|
                         port = port.to_component_port
                         handled_ports << port.name
                         dynamics = PortDynamics.new(
