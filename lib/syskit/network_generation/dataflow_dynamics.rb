@@ -310,8 +310,15 @@ module Syskit
             # through a communication bus.
             def initial_combus_information(task)
                 handled_ports = Set.new
+                DataFlowDynamics.debug do
+                    'adding information from attached combus devices'
+                end
+
                 task.each_attached_device do |dev|
                     srv = task.find_data_service(dev.name)
+                    DataFlowDynamics.debug do
+                        "  #{dev.name}, period: #{dev.period} burst: #{dev.burst}"
+                    end
                     srv.each_input_port do |port|
                         handled_ports << port.name
                         port = port.to_component_port
@@ -321,6 +328,13 @@ module Syskit
                             dynamics.add_trigger(dev.name, 0, dev.burst)
                         end
                         add_port_info(task, port.name, dynamics)
+                        DataFlowDynamics.debug do
+                            DataFlowDynamics.debug "  #{port.name}:"
+                            DataFlowDynamics.log_nest(4) do
+                                DataFlowDynamics.log_pp(:debug, dynamics)
+                            end
+                            break
+                        end
                     end
                 end
                 handled_ports.each do |port_name|
