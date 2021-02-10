@@ -82,27 +82,27 @@ describe Syskit::RobyApp::RemoteProcesses do
         end
 
         it "knows about the available projects" do
-            assert loader.available_projects.has_key?('simple_sink')
+            assert loader.available_projects.has_key?('orogen_syskit_tests')
         end
 
         it "knows about the available typekits" do
-            assert loader.available_typekits.has_key?('simple_sink')
+            assert loader.available_typekits.has_key?('orogen_syskit_tests')
         end
 
         it "knows about the available deployments" do
-            assert loader.available_deployments.has_key?('simple_sink')
+            assert loader.available_deployments.has_key?('syskit_tests_empty')
         end
 
         it "can load a remote project model" do
-            assert loader.project_model_from_name('simple_sink')
+            assert loader.project_model_from_name('orogen_syskit_tests')
         end
 
         it "can load a remote typekit model" do
-            assert loader.typekit_model_from_name('simple_sink')
+            assert loader.typekit_model_from_name('orogen_syskit_tests')
         end
 
         it "can load a remote deployment model" do
-            assert loader.deployment_model_from_name('simple_sink')
+            assert loader.deployment_model_from_name('syskit_tests_empty')
         end
     end
 
@@ -112,8 +112,8 @@ describe Syskit::RobyApp::RemoteProcesses do
         end
 
         it "can start a process on the server synchronously" do
-            process = client.start "simple_sink", "simple_sink",
-                Hash["simple_sink_sink" => "test"],
+            process = client.start "syskit_tests_empty", "syskit_tests_empty",
+                Hash["syskit_tests_empty_empty" => "empty"],
                 :wait => true,
                 :oro_logfile => nil, :output => '/dev/null'
             assert process.alive?
@@ -122,7 +122,7 @@ describe Syskit::RobyApp::RemoteProcesses do
 
         it "raises if the deployment does not exist on the remote server" do
             assert_raises(OroGen::DeploymentModelNotFound) do
-                client.start "bla", "bla", Hash["sink" => "test"], :wait => true
+                client.start "bla", "bla", Hash["test" => "test"], :wait => true
             end
         end
 
@@ -137,9 +137,9 @@ describe Syskit::RobyApp::RemoteProcesses do
 
         it "uses the deployment model loaded on the root loader" do
             project    = OroGen::Spec::Project.new(root_loader)
-            deployment = project.deployment 'simple_sink'
+            deployment = project.deployment 'syskit_tests_empty'
             root_loader.register_deployment_model(deployment)
-            process = client.start "simple_sink", "simple_sink", Hash.new, :wait => true,
+            process = client.start "orogen_syskit_tests", "orogen_syskit_tests", Hash.new, :wait => true,
                 :oro_logfile => nil, :output => '/dev/null'
             assert_same deployment, process.model
         end
@@ -149,8 +149,8 @@ describe Syskit::RobyApp::RemoteProcesses do
         attr_reader :process
         before do
             start_and_connect_to_server
-            @process = client.start "simple_sink", "simple_sink",
-                Hash["simple_sink_sink" => "test"],
+            @process = client.start "syskit_tests_empty", "syskit_tests_empty",
+                Hash["syskit_tests_empty_empty" => "empty"],
                 :wait => true,
                 :oro_logfile => nil, :output => '/dev/null'
         end
@@ -158,7 +158,7 @@ describe Syskit::RobyApp::RemoteProcesses do
         it "kills an already started process" do
             process.kill(true)
             assert_raises Orocos::NotFound do
-                Orocos.get "simple_sink_sink"
+                Orocos.get "orogen_syskit_tests_tests"
             end
         end
 
