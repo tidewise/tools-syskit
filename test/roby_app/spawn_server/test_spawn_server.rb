@@ -1,90 +1,113 @@
 # frozen_string_literal: true
 
-require "minitest/autorun"
-require "minitest/spec"
-
-require "ftpd"
-require "net/ftp"
-
+require "syskit/test/self"
 require "syskit/roby_app/log_transfer_server"
 
 describe Syskit::RobyApp::LogTransferServer::SpawnServer do
-
     class TestServer < Syskit::RobyApp::LogTransferServer::SpawnServer
-        include Ftpd::InsecureCertificate
-
         attr_accessor :user, :password, :certfile_path
 
-        def initialize(
-            tgt_dir, 
-            user = "test.user", 
-            password = "test.password", 
-            certfile_path = insecure_certfile_path)
-            super
+        def initialize(target_dir, user, password)
+            @certfile_path = File.join(__dir__, "..", "remote_processes", "cert.crt")
+            private_key_path = File.join(
+                __dir__, "..", "remote_processes", "cert-private.crt"
+            )
+            super(target_dir, user, password, private_key_path)
+            @user = user
+            @password = password
         end
     end
 
     ### AUXILIARY FUNCTIONS ###
     def spawn_server
-        @temp_dir = Ftpd::TempDir.make
-        @server = TestServer.new(@temp_dir)
+        @temp_serverdir = make_tmpdir
+        @user = "test.user"
+        @password = "test.password"
+        @server = TestServer.new(@temp_serverdir, @user, @password)
     end
 
-    def upload_log(host, port, certificate, user, password, localfile)
-        Net::FTP.open(host, port: port, verify_mode: OpenSSL::SSL::VERIFY_PEER, ca_file: certificate) do |ftp|
+    def ftp_open(certfile_path: @server.certfile_path, &block)
+        Net::FTP.open(
+            "localhost",
+            port: @server.port,
+            ssl: { verify_mode: OpenSSL::SSL::VERIFY_PEER, verify_hostname: false,
+                   ca_file: certfile_path },
+            &block
+        )
+    end
+
+    def upload_log(user, password, localfile, certfile_path: @server.certfile_path)
+        ftp_open(certfile_path: certfile_path) do |ftp|
             ftp.login(user, password)
-            lf = File.open(localfile)
-            ftp.storbinary("STOR #{File.basename(localfile)}", lf, Net::FTP::DEFAULT_BLOCKSIZE)
+            File.open(localfile) do |lf|
+                ftp.storbinary("STOR #{File.basename(localfile)}",
+                               lf, Net::FTP::DEFAULT_BLOCKSIZE)
+            end
         end
     end
 
     def upload_testfile
-        File.new("testfile", "w+")
-        upload_log(@server.interface, @server.port, @server.certfile_path, @server.user, @server.password, "testfile")
-        File.delete("testfile")
+        File.open(File.join(@temp_srcdir, "testfile"), "w+") do |tf|
+            upload_log(@server.user, @server.password, tf)
+        end
     end
 
     ### TESTS ###
     describe "#LogTransferServerTests" do
-
         before do
             spawn_server
-        end
-        
-        it "tests connection to server" do
-            Net::FTP.open(
-                @server.interface, 
-                port: @server.port, 
-                verify_mode: OpenSSL::SSL::VERIFY_PEER, 
-                ca_file: @server.certfile_path) do |ftp|
-                
-                assert ftp.login(@server.user, @server.password), "FTP server doesn't connect."
-            end
+            @temp_srcdir = make_tmpdir
         end
 
-        it "tests file uploads to server" do
-            upload_testfile
-            assert File.exist?("#{@temp_dir}/testfile"), "Uploaded file doesn't exist."
-        end
-
-        it "tests upload of file that already exists" do
-            upload_testfile
-            assert_raises(Net::FTPPermError) {upload_testfile}
-        end
-
-        it "tests read function blocking of remote repository" do
-            upload_testfile
-            Net::FTP.open(
-                @server.interface, 
-                port: @server.port, 
-                verify_mode: OpenSSL::SSL::VERIFY_PEER, 
-                ca_file: @server.certfile_path) do |ftp|
-                
+        it "logs in successfully with the correct user and password" do
+            ftp_open do |ftp|
+                # Raises on error
                 ftp.login(@server.user, @server.password)
-                assert_raises(Net::FTPPermError) { ftp.get("#{@temp_dir}/testfile") }
             end
         end
 
+        it "rejects an invalid user" do
+            ftp_open do |ftp|
+                assert_raises(Net::FTPPermError) { ftp.login("user", @server.password) }
+            end
+        end
+
+        it "rejects an invalid password" do
+            ftp_open do |ftp|
+                assert_raises(Net::FTPPermError) { ftp.login(@server.user, "password") }
+            end
+        end
+
+        it "refuses to connect if the server's certificate is unexpected" do
+            invalid_certfile_path = File.join(
+                __dir__, "..", "remote_processes", "invalid-cert.crt"
+            )
+
+            e = assert_raises(OpenSSL::SSL::SSLError) do
+                ftp_open(certfile_path: invalid_certfile_path)
+            end
+            assert_match(/certificate verify failed/, e.message)
+        end
+
+        it "uploads a file to the server's directory" do
+            upload_testfile
+            assert File.exist?("#{@temp_serverdir}/testfile"),
+                   "cannot find the expected upload"
+        end
+
+        it "refuses to upload a file that already exists" do
+            upload_testfile
+            assert_raises(Net::FTPPermError) { upload_testfile }
+        end
+
+        it "refuses to GET a file" do
+            upload_testfile
+            ftp_open do |ftp|
+                ftp.login(@server.user, @server.password)
+                assert_raises(Net::FTPPermError) do
+                    ftp.get("#{@temp_serverdir}/testfile")
+                end
+            end
+        end
     end
 end
-
