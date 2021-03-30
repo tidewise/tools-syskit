@@ -160,7 +160,7 @@ module Syskit
                 )
 
                 app.execution_engine.every(Conf.syskit.log_rotation_period) do
-                    app.rotate_logs(host, @local_transfer_server.port, tmp_root_ca.cert_filepath, user, password)
+                    app.rotate_logs("localhost", tmp_root_ca)
                 end
             end
 
@@ -173,11 +173,11 @@ module Syskit
                             port: @server_port)
                     # Commands method log_upload_file from said process server
                     client.log_upload_file(
-                        host: "localhost", 
-                        port: @log_transfer_port.port, 
-                        certificate: tmp_root_ca.cert_filepath, 
-                        user: tmp_root_ca.ca_user, 
-                        password: tmp_root_ca.ca_password, 
+                        host: "localhost",
+                        port: @log_transfer_port.port,
+                        certificate: tmp_root_ca.cert_filepath,
+                        user: tmp_root_ca.ca_user,
+                        password: tmp_root_ca.ca_password,
                         localfile: logfile
                     )
                 else
@@ -918,7 +918,7 @@ module Syskit
                 rest_api.mount REST_API => "/syskit"
             end
 
-            def rotate_logs(host, port, certificate, user, password)
+            def self.rotate_logs(process_server_name, tmp_root_ca)
                 plan.find_tasks(OroGen.logger.Logger).running.each do |task|
                     previous_file = task.orocos_task.current_file
                     new_file = task.orocos_task.file
@@ -938,7 +938,7 @@ module Syskit
                         new_file << ".log" if previous_file.match?(/.log$/)
                     end
                     task.orocos_task.file = new_file
-                    log_upload_file(host, port, certificate, user, password, previous_file) # not implemented yet
+                    send_file_transfer_command(process_server_name, tmp_root_ca, previous_file)
                 end
             end
         end
