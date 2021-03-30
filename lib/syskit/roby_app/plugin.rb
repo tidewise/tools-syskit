@@ -169,8 +169,9 @@ module Syskit
                 if process_servers[name]
                     # Establishes communication with said process server
                     client = Syskit::RobyApp::RemoteProcesses::Client.new(
-                            host: process_server[name].host_id,
-                            port: @server_port)
+                        host: process_server[name].host_id,
+                        port: @server_port
+                    )
                     # Commands method log_upload_file from said process server
                     client.log_upload_file(
                         host: "localhost",
