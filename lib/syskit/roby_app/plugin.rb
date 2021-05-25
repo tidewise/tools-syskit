@@ -155,7 +155,7 @@ module Syskit
                 app.setup_local_log_transfer_server if app.log_transfer_ip
 
                 app.execution_engine.every(Conf.syskit.log_rotation_period) do
-                    app.rotate_logs("localhost", tmp_root_ca)
+                    app.rotate_logs("localhost")
                 end
             end
 
@@ -940,27 +940,28 @@ module Syskit
                 rest_api.mount REST_API => "/syskit"
             end
 
-            def self.rotate_logs(process_server_name, tmp_root_ca)
+            def self.rotate_logs(process_server_name)
                 plan.find_tasks(OroGen.logger.Logger).running.each do |task|
                     previous_file = task.orocos_task.current_file
                     new_file = task.orocos_task.file
                     unless task.orocos_task.auto_timestamp_files
-                        new_file = new_file.partition(".log").first
-                        new_file, new_log_number = new_file.split(/\d+$/)
-                        unless new_log_number
-                            new_log_number = "1"
-                            if previous_file.match?(/.log$/)
-                                previous_file = previous_file.partition(".log").first << new_log_number << ".log"
-                            else
-                                previous_file << new_log_number
-                            end
+                        new_file = new_file.partition(/.log$/).first
+                        new_file, new_log_number = new_file.partition(/_\d+$/)
+                        if new_log_number.empty?
+                            new_log_number = "_1"
+                            previous_file = if previous_file.match?(/.log$/)
+                                                previous_file.partition(/.log$/).first + new_log_number + ".log"
+                                            else
+                                                previous_file + new_log_number
+                                            end
                         end
-                        new_log_number = new_log_number.to_i + 1
-                        new_file << new_log_number.to_s
+                        # remove underscore to increment number
+                        new_log_number = new_log_number[1, new_log_number.length].to_i + 1
+                        new_file << "_" << new_log_number.to_s
                         new_file << ".log" if previous_file.match?(/.log$/)
                     end
                     task.orocos_task.file = new_file
-                    send_file_transfer_command(process_server_name, tmp_root_ca, previous_file)
+                    send_file_transfer_command(process_server_name, previous_file)
                 end
             end
         end
