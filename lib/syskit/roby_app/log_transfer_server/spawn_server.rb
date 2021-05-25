@@ -2,6 +2,14 @@
 
 require "English"
 
+module Ftpd
+    # Base class of Ftpd::FtpServer
+    # Used here to get the server_thread status
+    class Server
+        attr_reader :server_thread
+    end
+end
+
 module Syskit
     module RobyApp
         module LogTransferServer
@@ -24,7 +32,6 @@ module Syskit
                     debug: false,
                     verbose: false
                 )
-
                     @debug = debug
                     driver = Driver.new(user, password, tgt_dir)
                     server = Ftpd::FtpServer.new(driver)
@@ -46,6 +53,18 @@ module Syskit
                 # The user should call this function in order to spawn the server
                 def run
                     wait_until_stopped
+                end
+
+                def stop
+                    @server.stop
+                end
+
+                def join
+                    @server.join
+                end
+
+                def stopped?
+                    @server.server_thread.stop?
                 end
 
                 private

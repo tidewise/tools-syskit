@@ -96,23 +96,18 @@ module Syskit
             def instanciate(instance_requirements)
                 log_timepoint "instanciate_requirements"
                 toplevel_tasks = instance_requirements.each_with_index.map do |requirements, i|
-                    task = requirements.instanciate(plan)
-                                       .to_task
+                    task = requirements.instanciate(plan).to_task
                     # We add all these tasks as permanent tasks, to use
                     # #static_garbage_collect to cleanup #plan.
                     plan.add_permanent_task(task)
 
-                    fullfilled_task_m, fullfilled_modules, fullfilled_args =
+                    fullfilled_task_m, fullfilled_modules, req_args =
                         requirements.fullfilled_model
-                    fullfilled_args =
-                        fullfilled_args.each_key.each_with_object({}) do |arg_name, h|
-                            if task.arguments.set?(arg_name)
-                                h[arg_name] = task.arguments[arg_name]
-                            end
-                        end
+                    meaningful_args = task.meaningful_arguments.dup
+                    meaningful_args.delete_if { |k, _| !req_args.key?(k) }
 
                     task.fullfilled_model = [
-                        fullfilled_task_m, fullfilled_modules, fullfilled_args
+                        fullfilled_task_m, fullfilled_modules, meaningful_args
                     ]
                     log_timepoint "task-#{i}"
                     task
@@ -234,7 +229,7 @@ module Syskit
                 end
 
                 Engine.system_network_postprocessing.each do |block|
-                    block.call(self)
+                    block.call(self, plan)
                 end
                 log_timepoint "postprocessing"
 

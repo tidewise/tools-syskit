@@ -2,6 +2,7 @@
 
 require "syskit/test/self"
 require "syskit/roby_app/log_transfer_server"
+require "net/ftp"
 
 describe Syskit::RobyApp::LogTransferServer::SpawnServer do
     class TestServer < Syskit::RobyApp::LogTransferServer::SpawnServer
@@ -59,6 +60,11 @@ describe Syskit::RobyApp::LogTransferServer::SpawnServer do
             @temp_srcdir = make_tmpdir
         end
 
+        after do
+            @server.stop
+            @server.join
+        end
+
         it "logs in successfully with the correct user and password" do
             ftp_open do |ftp|
                 # Raises on error
@@ -91,8 +97,7 @@ describe Syskit::RobyApp::LogTransferServer::SpawnServer do
 
         it "uploads a file to the server's directory" do
             upload_testfile
-            assert File.exist?("#{@temp_serverdir}/testfile"),
-                "cannot find the expected upload"
+            assert File.exist?("#{@temp_serverdir}/testfile")
         end
 
         it "refuses to upload a file that already exists" do

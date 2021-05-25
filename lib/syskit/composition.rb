@@ -47,9 +47,13 @@ module Syskit
         #   'monitoring' => ['default', 'narrow_window'],
         #   'sonar' => ['default', 'narrow_window']
         def conf(names)
+            return {} if names.empty?
+
             if names.size != 1
-                raise ArgumentError, "unlike with ConfigurationManager, only one "\
-                                        "configuration can be selected on compositions"
+                raise ArgumentError,
+                      "unlike with ConfigurationManager, only one configuration can "\
+                      "be selected on compositions. Attempted to select #{names} on "\
+                      "#{self}"
             end
 
             result = {}
@@ -206,19 +210,14 @@ module Syskit
         # It adds the task to {Flows::DataFlow#modified_tasks} whenever the
         # DataFlow relations is changed in a way that could require changing
         # the underlying Orocos components connections.
-        def dataflow_change_handler(ignore_missing_child, _child, mappings) # :nodoc:
+        def dataflow_change_handler(_child, mappings) # :nodoc:
             # The case where 'child' is already a task context is already
             # taken care of by
+            modified_tasks = relation_graph_for(Flows::DataFlow).modified_tasks
             mappings.each_key do |source_port, _sink_port|
-                component =
-                    begin find_port(source_port).to_actual_port.component
-                    rescue Roby::NoSuchChild
-                        raise unless ignore_missing_child
-                    end
-
-                if component
-                    relation_graph_for(Flows::DataFlow).modified_tasks << component
-                end
+                component = find_port(source_port).to_actual_port.component
+                modified_tasks << component
+            rescue Roby::NoSuchChild # rubocop:disable Lint/SuppressedException
             end
         end
 
@@ -261,12 +260,12 @@ module Syskit
         # update the underlying task's connections
         def added_sink(child, mappings) # :nodoc:
             super
-            dataflow_change_handler(false, child, mappings)
+            dataflow_change_handler(child, mappings)
         end
 
         def updated_sink(child, mappings)
             super
-            dataflow_change_handler(false, child, mappings)
+            dataflow_change_handler(child, mappings)
         end
 
         # Called when a child is removed from this composition.
@@ -275,7 +274,7 @@ module Syskit
         # update the underlying task's connections
         def removing_sink(child) # :nodoc:
             super
-            dataflow_change_handler(true, child, self[child, Flows::DataFlow])
+            dataflow_change_handler(child, self[child, Flows::DataFlow])
         end
 
         # Generates the InstanceRequirements object that represents +self+
