@@ -153,10 +153,6 @@ module Syskit
 
                 # Log Transfer FTP Server spawned during Application#setup
                 app.setup_local_log_transfer_server if app.log_transfer_ip
-
-                app.execution_engine.every(Conf.syskit.log_rotation_period) do
-                    app.rotate_logs("localhost")
-                end
             end
 
             def setup_local_log_transfer_server
@@ -247,6 +243,15 @@ module Syskit
             # Hook called by the main application to prepare for execution
             def self.prepare(app)
                 @handler_ids = plug_engine_in_roby(app.execution_engine)
+
+                @log_upload_command_queue = Queue.new
+                @log_upload_thread = Thread.new { log_upload_main }
+
+                if Syskit.conf.log_rotation_period
+                    app.execution_engine.every(Syskit.conf.log_rotation_period) do
+                        app.rotate_logs
+                    end
+                end
             end
 
             # Hook called by the main application to undo what {.prepare} did
@@ -261,6 +266,9 @@ module Syskit
                     unplug_engine_from_roby(@handler_ids.values, app.execution_engine)
                     @handler_ids = nil
                 end
+
+                @log_upload_command_queue << nil
+                @log_upload_thread.join
             end
 
             def default_loader
@@ -940,28 +948,24 @@ module Syskit
                 rest_api.mount REST_API => "/syskit"
             end
 
-            def self.rotate_logs(process_server_name)
-                plan.find_tasks(OroGen.logger.Logger).running.each do |task|
-                    previous_file = task.orocos_task.current_file
-                    new_file = task.orocos_task.file
-                    unless task.orocos_task.auto_timestamp_files
-                        new_file = new_file.partition(/.log$/).first
-                        new_file, new_log_number = new_file.partition(/_\d+$/)
-                        if new_log_number.empty?
-                            new_log_number = "_1"
-                            previous_file = if previous_file.match?(/.log$/)
-                                                previous_file.partition(/.log$/).first + new_log_number + ".log"
-                                            else
-                                                previous_file + new_log_number
-                                            end
-                        end
-                        # remove underscore to increment number
-                        new_log_number = new_log_number[1, new_log_number.length].to_i + 1
-                        new_file << "_" << new_log_number.to_s
-                        new_file << ".log" if previous_file.match?(/.log$/)
-                    end
-                    task.orocos_task.file = new_file
-                    send_file_transfer_command(process_server_name, previous_file)
+            def rotate_logs
+                plan.find_tasks(Syskit::LoggerService).running.each do |task|
+                    logfile = task.rotate_log
+                    @log_upload_command_queue << Upload.new(task.execution_agent.on, logfile)
+                end
+            end
+
+            def log_upload_main
+                while (transfer = @log_upload_command_queue.pop)
+                    transfer.apply
+                end
+            end
+
+            Upload = Struct.new(
+                :process_server_name, :file
+            ) do
+                def apply
+                    send_file_transfer_command(process_server_name, file)
                 end
             end
         end
